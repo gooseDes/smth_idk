@@ -22,6 +22,6 @@ export function detectInputDevices() {
   return {
     mouseOrKeyboard,
     touch,
-    primaryInput: mouseOrKeyboard ? "mouse/keyboard" : (touch ? "touch" : "none")
+    primaryInput: touch ? 'touch' : 'mouse'
   };
 }
