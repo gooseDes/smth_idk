@@ -1,4 +1,4 @@
-import { Engine, Scene, Vector3, HemisphericLight, MeshBuilder, UniversalCamera, VirtualJoystick, Vector2, Quaternion, StandardMaterial, Color3 } from "@babylonjs/core";
+import { Engine, Scene, Vector3, HemisphericLight, MeshBuilder, UniversalCamera, VirtualJoystick, Vector2, Quaternion, StandardMaterial, Color3, DirectionalLight, ShadowGenerator, CascadedShadowGenerator } from "@babylonjs/core";
 import "@babylonjs/core/Debug/debugLayer";
 import "@babylonjs/inspector";
 import "@babylonjs/loaders/glTF";
@@ -8,7 +8,7 @@ import HavokPhysics from "@babylonjs/havok";
 import { HavokPlugin, PhysicsShapeType, PhysicsAggregate } from "@babylonjs/core/Physics";
 
 const CAMERA_ROTATION_SPEED = 0.003;
-const CAMERA_MOVE_SPEED = 500.05;
+const CAMERA_MOVE_SPEED = 500;
 
 window.addEventListener("DOMContentLoaded", () => {
   createScene().then(() => {});
@@ -46,6 +46,7 @@ async function createScene() {
   canvas.addEventListener("click", () => {
     if (document.pointerLockElement !== canvas) {
       canvas.requestFullscreen();
+      canvas.requestPointerLock();
     }
   });
 
@@ -70,26 +71,85 @@ async function createScene() {
     }
   });
 
-  new HemisphericLight("light", new Vector3(1, 1, 0), scene);
+  const light = new HemisphericLight("light", new Vector3(0, 1, 0), scene);
+  light.intensity = 0.3;
+  const dirLight = new DirectionalLight("dirLight", new Vector3(-1, -2, -1), scene);
+  dirLight.position = new Vector3(10, 20, 10);
+  const shadowGen = new CascadedShadowGenerator(4096, dirLight, true, camera);
+  shadowGen.lambda = 0.7;
+  shadowGen.autoCalcDepthBounds = true;
+  shadowGen.usePercentageCloserFiltering = true;
+  shadowGen.filteringQuality = ShadowGenerator.QUALITY_HIGH;
+  shadowGen.bias = 0.0005;
+  shadowGen.normalBias = 0.005;
+  shadowGen.setDarkness(0.5);
+
+  camera.minZ = 0.5;
+  camera.maxZ = 500;
+
   const redMat = new StandardMaterial("redMat", scene);
   redMat.diffuseColor = new Color3(1, 0, 0);
   const greenMat = new StandardMaterial("greenMat", scene);
   greenMat.diffuseColor = new Color3(0, 1, 0);
   const sphere = MeshBuilder.CreateSphere("sphere", { diameter: 1 }, scene);
+  sphere.receiveShadows = true;
   sphere.material = redMat;
   sphere.position.x = 5;
-  sphere.position.y = 1;
+  sphere.position.y = 4;
+  shadowGen.addShadowCaster(sphere);
   const cube = MeshBuilder.CreateBox("cube", { size: 1 }, scene);
+  cube.receiveShadows = true;
   cube.material = greenMat;
   cube.position.x = 5;
   cube.position.y = 2;
+  const cube2 = MeshBuilder.CreateBox("cube2", { size: 1 }, scene);
+  cube2.receiveShadows = true;
+  cube2.material = greenMat;
+  cube2.position.x = 5;
+  cube2.position.y = 1;
+  const cube3 = MeshBuilder.CreateBox("cube3", { size: 1 }, scene);
+  cube3.receiveShadows = true;
+  cube3.material = greenMat;
+  cube3.position.x = 5;
+  cube3.position.y = 3;
+  const cube4 = MeshBuilder.CreateBox("cube4", { size: 1 }, scene);
+  cube4.receiveShadows = true;
+  cube4.material = greenMat;
+  cube4.position.x = 4;
+  cube4.position.y = 1;
+  const cube5 = MeshBuilder.CreateBox("cube5", { size: 1 }, scene);
+  cube5.receiveShadows = true;
+  cube5.material = greenMat;
+  cube5.position.x = 6;
+  cube5.position.y = 1;
+  shadowGen.addShadowCaster(cube);
+  shadowGen.addShadowCaster(cube2);
+  shadowGen.addShadowCaster(cube3);
+  shadowGen.addShadowCaster(cube4);
+  shadowGen.addShadowCaster(cube5);
+  for (let i = 0; i < 50; i++) {
+    const box = MeshBuilder.CreateBox(`box${i}`, { size: 0.5 }, scene);
+    box.position.x = Math.random() * 20 - 10;
+    box.position.y = Math.random() * 10 + 1;
+    box.position.z = Math.random() * 20 - 10;
+    box.receiveShadows = true;
+    box.material = greenMat;
+    shadowGen.addShadowCaster(box);
+    new PhysicsAggregate(box, PhysicsShapeType.BOX, { mass: 1, restitution: 0.75 }, scene);
+  }
   const ground = MeshBuilder.CreateGround("ground", { width: 50, height: 50 }, scene);
+  ground.receiveShadows = true;
   const sphereAggregate = new PhysicsAggregate(sphere, PhysicsShapeType.SPHERE, { mass: 1, restitution: 0.75 }, scene);
-  const cubeAggregate = new PhysicsAggregate(cube, PhysicsShapeType.BOX, { mass: 1, restitution: 0.75 }, scene);
+  new PhysicsAggregate(cube, PhysicsShapeType.BOX, { mass: 1, restitution: 0.75 }, scene);
+  new PhysicsAggregate(cube2, PhysicsShapeType.BOX, { mass: 1, restitution: 0.75 }, scene);
+  new PhysicsAggregate(cube3, PhysicsShapeType.BOX, { mass: 1, restitution: 0.75 }, scene);
+  new PhysicsAggregate(cube4, PhysicsShapeType.BOX, { mass: 1, restitution: 0.75 }, scene);
+  new PhysicsAggregate(cube5, PhysicsShapeType.BOX, { mass: 1, restitution: 0.75 }, scene);
   const groundAggregate = new PhysicsAggregate(ground, PhysicsShapeType.BOX, { mass: 0 }, scene);
 
   const playerMesh = MeshBuilder.CreateCapsule("player", { radius: 0.5, height: 2 }, scene);
   playerMesh.position.y = 1;
+  shadowGen.addShadowCaster(playerMesh);
   const playerAggregate = new PhysicsAggregate(playerMesh, PhysicsShapeType.CAPSULE, { mass: 1, restitution: 0.2 }, scene);
   playerAggregate.body.disablePreStep = false;
 
@@ -108,6 +168,9 @@ async function createScene() {
   camera.position = new Vector3(0, 0.5, 0);
 
   document.addEventListener("touchstart", event => {
+    if (document.fullscreenElement != canvas) {
+      canvas.requestFullscreen();
+    }
     for (let touch of event.touches) {
       if (touch.clientX > window.innerWidth * 0.7) {
         isRotatingTouch = true;
