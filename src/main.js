@@ -14,11 +14,57 @@ window.addEventListener("DOMContentLoaded", () => {
   createScene().then(() => {});
 });
 
+const originalFetch = window.fetch;
+window.fetch = (url, options = {}) => {
+  options.credentials = 'omit';
+  return originalFetch(url, options);
+};
+
+const canvas = document.getElementById("renderCanvas");
+const engine = new Engine(canvas, true);
+const scene = new Scene(engine);
+
+const ws = new WebSocket("ws://134.249.176.116:2567");
+
+const name = 'Player' + Math.floor(Math.random() * 765);
+
+function numberToColor(id) {
+  const r = (id * 16807) % 256;
+  const g = (id * 48271) % 256;
+  const b = (id * 69691) % 256;
+  return new Color3(r/255, g/255, b/255);
+}
+
+
+ws.onopen = () => {
+  ws.send(JSON.stringify({ type: 'join', name: name}));
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    if (data.type == 'update') {
+      data.players.forEach(player => {
+        if (player.name === name) return;
+        const playerMesh = scene.getMeshByName(player.name);
+        if (playerMesh) {
+          playerMesh.position = new Vector3(player.position[0], player.position[1], player.position[2]);
+          if (player.rotation) {
+            playerMesh.rotationQuaternion = Quaternion.FromEulerAngles(player.rotation[0], player.rotation[1], player.rotation[2]);
+          }
+        } else {
+          const newPlayerMesh = MeshBuilder.CreateCapsule(player.name, { radius: 0.5, height: 2 }, scene);
+          newPlayerMesh.position = new Vector3(0, 0, 0);
+          newPlayerMesh.material = new StandardMaterial("playerMat", scene);
+          const id = parseInt(player.name.replace('Player', ''));
+          newPlayerMesh.material.diffuseColor = numberToColor(id);
+          const newPlayerAggregate = new PhysicsAggregate(newPlayerMesh, PhysicsShapeType.CAPSULE, { mass: 1, restitution: 0.2 }, scene);
+          newPlayerAggregate.body.disablePreStep = false;
+        }
+      });
+    }
+  };
+}
+
 async function createScene() {
-  const canvas = document.getElementById("renderCanvas");
   const inputDevice = detectInputDevices();
-  const engine = new Engine(canvas, true);
-  const scene = new Scene(engine);
   
   const havok = await HavokPhysics({
     locateFile: (path) => `node_modules/@babylonjs/havok/lib/esm/${path}`
@@ -45,7 +91,7 @@ async function createScene() {
 
   canvas.addEventListener("click", () => {
     if (document.pointerLockElement !== canvas) {
-      canvas.requestFullscreen();
+      document.documentElement.requestFullscreen();
       canvas.requestPointerLock();
     }
   });
@@ -169,7 +215,7 @@ async function createScene() {
 
   document.addEventListener("touchstart", event => {
     if (document.fullscreenElement != canvas) {
-      canvas.requestFullscreen();
+      document.documentElement.requestFullscreen();
     }
     for (let touch of event.touches) {
       if (touch.clientX > window.innerWidth * 0.7) {
@@ -232,6 +278,8 @@ async function createScene() {
     camera.rotation.y = cameraYaw;
     camera.rotation.x = cameraPitch;
     camera.rotation.z = 0;
+
+    ws.send(JSON.stringify({'type': 'update', 'name': name, 'position': playerMesh.position.asArray(), 'rotation': camera.rotation.asArray() }));
 
     scene.render();
   }
