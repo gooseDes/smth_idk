@@ -35,6 +35,8 @@ function numberToColor(id) {
   return new Color3(r/255, g/255, b/255);
 }
 
+const testBoxMaterial = new StandardMaterial("testBoxMaterial", scene);
+testBoxMaterial.diffuseColor = new Color3(0, 0, 255);
 
 ws.onopen = () => {
   ws.send(JSON.stringify({ type: 'join', name: name}));
@@ -42,7 +44,7 @@ ws.onopen = () => {
     const data = JSON.parse(event.data);
     if (data.type == 'update') {
       data.players.forEach(player => {
-        if (player.name === name) return;
+        if (player.name == name) return;
         const playerMesh = scene.getMeshByName(player.name);
         if (playerMesh) {
           playerMesh.position = new Vector3(player.position[0], player.position[1], player.position[2]);
@@ -57,6 +59,25 @@ ws.onopen = () => {
           newPlayerMesh.material.diffuseColor = numberToColor(id);
           const newPlayerAggregate = new PhysicsAggregate(newPlayerMesh, PhysicsShapeType.CAPSULE, { mass: 1, restitution: 0.2 }, scene);
           newPlayerAggregate.body.disablePreStep = false;
+        }
+      });
+    } else if (data.type == 'update_physics') {
+      data.objects.forEach(object => {
+        const objectMesh = scene.getMeshByName(object.name);
+        if (objectMesh) {
+          const plugin = scene.getPhysicsEngine().getPhysicsPlugin();
+          plugin._hknp.HP_Body_SetPosition(objectMesh.physicsBody._pluginData.hpBodyId, object.position);
+          objectMesh.physicsBody.setLinearVelocity(object.velocity);
+          objectMesh.physicsBody.setAngularVelocity(object.angularVelocity);
+        } else {
+          switch (object.type) {
+            case 'test_box':
+              const newObjectMesh = MeshBuilder.CreateBox(object.name, { size: 0.5 }, scene);
+              newObjectMesh.position = Vector3.FromArray(object.position);
+              newObjectMesh.rotation = Vector3.FromArray(object.rotation);
+              newObjectMesh.material = testBoxMaterial;
+              new PhysicsAggregate(newObjectMesh, PhysicsShapeType.BOX, { mass: 1, restitution: 0.2 }, scene)
+          }
         }
       });
     }
@@ -173,7 +194,7 @@ async function createScene() {
   shadowGen.addShadowCaster(cube3);
   shadowGen.addShadowCaster(cube4);
   shadowGen.addShadowCaster(cube5);
-  for (let i = 0; i < 50; i++) {
+  /*for (let i = 0; i < 50; i++) {
     const box = MeshBuilder.CreateBox(`box${i}`, { size: 0.5 }, scene);
     box.position.x = Math.random() * 20 - 10;
     box.position.y = Math.random() * 10 + 1;
@@ -182,7 +203,7 @@ async function createScene() {
     box.material = greenMat;
     shadowGen.addShadowCaster(box);
     new PhysicsAggregate(box, PhysicsShapeType.BOX, { mass: 1, restitution: 0.75 }, scene);
-  }
+  }*/
   const ground = MeshBuilder.CreateGround("ground", { width: 50, height: 50 }, scene);
   ground.receiveShadows = true;
   const sphereAggregate = new PhysicsAggregate(sphere, PhysicsShapeType.SPHERE, { mass: 1, restitution: 0.75 }, scene);
